@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "417194924834",
+    "project_id": "ice-student-management-75594",
+    "storage_bucket": "ice-student-management-75594.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:417194924834:android:6b9ac2ec96fba52c33237b",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6oVme2VbCXifxmY_jbbkThupV859Epcw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
