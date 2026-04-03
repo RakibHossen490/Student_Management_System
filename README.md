@@ -506,10 +506,10 @@ flutter devices
 
 ## 📞 Contact
 
-**Project Maintainer**: [Your Name]
-- **Email**: your.email@example.com
-- **GitHub**: [@your-username](https://github.com/your-username)
-- **LinkedIn**: [Your LinkedIn](https://linkedin.com/in/your-profile)
+**Project Maintainer**: [MD. Rakib Hossen Howladar]
+- **Email**: mdrakibhossenhowladar490@gmail.com
+- **GitHub**: [RakibHossen490](https://github.com/RakibHossen490)
+- **LinkedIn**: [MD Rakib Hossen Howladar](https://www.linkedin.com/in/md-rakib-hossen-howladar-453309379/)
 
 ---
 
