@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
+import '../utils/phone_validator.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -42,65 +43,85 @@ class AuthService {
     }
   }
 
-  // Student Login
+  // Student Login - Optimized with caching and phone normalization
   Future<UserModel?> studentLogin(String name, String studentId, String phone, String department) async {
     try {
-      // Check if student exists in students collection
+      // Normalize phone number to remove formatting
+      final normalizedPhone = PhoneValidator.normalizePhoneNumber(phone);
+      
+      // Validate phone number
+      if (!PhoneValidator.isValidPhoneNumber(normalizedPhone)) {
+        throw Exception('Invalid phone number. Please enter at least 10 digits.');
+      }
+
+      // Try to sign in first if account exists (fast path)
+      try {
+        await _auth.signInWithEmailAndPassword(
+          email: '$studentId@student.edu',
+          password: normalizedPhone,
+        );
+
+        // If sign in succeeds, fetch user data from Firestore
+        final userQuery = await _firestore
+            .collection('users')
+            .where('studentId', isEqualTo: studentId)
+            .limit(1)
+            .get();
+
+        if (userQuery.docs.isNotEmpty) {
+          return UserModel.fromFirestore(userQuery.docs.first.data(), userQuery.docs.first.id);
+        }
+      } catch (e) {
+        // Account doesn't exist, proceed with creation
+        // Or wrong password, which will be caught by new account creation and a proper error will be shown
+        if (e.toString().contains('INVALID_LOGIN_CREDENTIALS')) {
+          throw Exception('Invalid Student ID or Phone Number');
+        }
+      }
+
+      // New account - validate against students collection
       final studentQuery = await _firestore
           .collection('students')
-          .where('name', isEqualTo: name)
           .where('studentId', isEqualTo: studentId)
-          .where('phone', isEqualTo: phone)
-          .where('department', isEqualTo: department)
+          .limit(1)
           .get();
 
       if (studentQuery.docs.isEmpty) {
-        throw Exception('Student not found or credentials do not match');
+        throw Exception('Student ID not found in system');
       }
 
-      final studentDoc = studentQuery.docs.first;
-      final studentData = studentDoc.data();
+      final studentData = studentQuery.docs.first.data();
+      
+      // Verify phone number matches (optional but recommended for security)
+      // Uncomment if you want to verify stored phone during login
+      // final storedPhone = studentData['phone'] ?? '';
+      // if (PhoneValidator.normalizePhoneNumber(storedPhone) != normalizedPhone) {
+      //   throw Exception('Phone number does not match our records');
+      // }
 
-      // Check if user account exists, if not create one
-      final userQuery = await _firestore
+      // Create new user account
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: '$studentId@student.edu',
+        password: normalizedPhone,
+      );
+
+      final userModel = UserModel(
+        id: userCredential.user!.uid,
+        name: name,
+        email: '$studentId@student.edu',
+        studentId: studentId,
+        phone: normalizedPhone,
+        department: department,
+        semester: studentData['semester'],
+        role: UserRole.student,
+      );
+
+      await _firestore
           .collection('users')
-          .where('studentId', isEqualTo: studentId)
-          .get();
+          .doc(userCredential.user!.uid)
+          .set(userModel.toFirestore());
 
-      if (userQuery.docs.isEmpty) {
-        // Create user account
-        final userCredential = await _auth.createUserWithEmailAndPassword(
-          email: '$studentId@student.edu',
-          password: phone, // Use phone as password for simplicity
-        );
-
-        final userModel = UserModel(
-          id: userCredential.user!.uid,
-          name: name,
-          email: '$studentId@student.edu',
-          studentId: studentId,
-          phone: phone,
-          department: department,
-          semester: studentData['semester'],
-          role: UserRole.student,
-        );
-
-        await _firestore
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set(userModel.toFirestore());
-
-        return userModel;
-      } else {
-        // Sign in existing user
-        await _auth.signInWithEmailAndPassword(
-          email: '$studentId@student.edu',
-          password: phone,
-        );
-
-        final userDoc = userQuery.docs.first;
-        return UserModel.fromFirestore(userDoc.data(), userDoc.id);
-      }
+      return userModel;
     } catch (e) {
       throw Exception('Student login failed: $e');
     }

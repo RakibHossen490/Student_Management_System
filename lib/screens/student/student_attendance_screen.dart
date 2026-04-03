@@ -3,21 +3,32 @@ import '../../models/user_model.dart';
 import '../../models/attendance.dart';
 import '../../services/attendance_service.dart';
 
-class StudentAttendanceScreen extends StatelessWidget {
+class StudentAttendanceScreen extends StatefulWidget {
   final UserModel user;
 
   const StudentAttendanceScreen({super.key, required this.user});
 
   @override
-  Widget build(BuildContext context) {
-    final AttendanceService attendanceService = AttendanceService();
+  State<StudentAttendanceScreen> createState() => _StudentAttendanceScreenState();
+}
 
+class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
+  late final AttendanceService _attendanceService;
+
+  @override
+  void initState() {
+    super.initState();
+    _attendanceService = AttendanceService();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Attendance"),
       ),
       body: StreamBuilder<List<Attendance>>(
-        stream: attendanceService.getAttendanceForStudent(user.studentId!),
+        stream: _attendanceService.getAttendanceForStudent(widget.user.studentId!),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

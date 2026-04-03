@@ -15,19 +15,32 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   final AuthService _authService = AuthService();
-  UserModel? _user;
+  UserModel? _cachedUser;
+  bool _isLoadingUser = true;
 
   @override
   void initState() {
     super.initState();
-    _checkAuthState();
+    _loadUserData();
   }
 
-  void _checkAuthState() async {
-    final user = await _authService.getCurrentUserData();
-    setState(() {
-      _user = user;
-    });
+  Future<void> _loadUserData() async {
+    try {
+      final user = await _authService.getCurrentUserData();
+      if (mounted) {
+        setState(() {
+          _cachedUser = user;
+          _isLoadingUser = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cachedUser = null;
+          _isLoadingUser = false;
+        });
+      }
+    }
   }
 
   @override
@@ -42,20 +55,31 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         final firebaseUser = snapshot.data;
+        
+        // No Firebase user, show login
         if (firebaseUser == null) {
           return const LoginScreen();
         }
 
-        // If we have user data, show appropriate dashboard
-        if (_user != null) {
-          return _user!.role == UserRole.admin
-              ? AdminDashboard(user: _user!)
-              : StudentDashboard(user: _user!);
+        // Firebase user exists, show appropriate dashboard if we have cached user data
+        if (!_isLoadingUser && _cachedUser != null) {
+          return _cachedUser!.role == UserRole.admin
+              ? AdminDashboard(user: _cachedUser!)
+              : StudentDashboard(user: _cachedUser!);
         }
 
-        // Still loading user data
+        // Still loading user data from Firestore
         return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Loading dashboard...'),
+              ],
+            ),
+          ),
         );
       },
     );

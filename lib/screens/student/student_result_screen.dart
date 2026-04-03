@@ -3,23 +3,34 @@ import '../../models/user_model.dart';
 import '../../models/result.dart';
 import '../../services/result_service.dart';
 
-class StudentResultScreen extends StatelessWidget {
+class StudentResultScreen extends StatefulWidget {
   final UserModel user;
 
   const StudentResultScreen({super.key, required this.user});
 
   @override
-  Widget build(BuildContext context) {
-    final ResultService resultService = ResultService();
+  State<StudentResultScreen> createState() => _StudentResultScreenState();
+}
 
+class _StudentResultScreenState extends State<StudentResultScreen> {
+  late final ResultService _resultService;
+
+  @override
+  void initState() {
+    super.initState();
+    _resultService = ResultService();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("My Results"),
       ),
       body: StreamBuilder<List<Result>>(
-        stream: resultService.getResultsByDeptSem(
-          user.department!,
-          user.semester!,
+        stream: _resultService.getResultsByDeptSem(
+          widget.user.department!,
+          widget.user.semester!,
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {

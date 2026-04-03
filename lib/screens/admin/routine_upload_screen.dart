@@ -1,30 +1,32 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/result.dart';
 import '../../services/result_service.dart';
 import '../../services/file_storage_service.dart';
 
-class SyllabusUploadScreen extends StatefulWidget {
+class RoutineUploadScreen extends StatefulWidget {
   final String department;
   final String semester;
 
-  const SyllabusUploadScreen({
+  const RoutineUploadScreen({
     super.key,
     required this.department,
     required this.semester,
   });
 
   @override
-  State<SyllabusUploadScreen> createState() => _SyllabusUploadScreenState();
+  State<RoutineUploadScreen> createState() => _RoutineUploadScreenState();
 }
 
-class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
+class _RoutineUploadScreenState extends State<RoutineUploadScreen> {
   final ResultService _resultService = ResultService();
   final FileStorageService _fileStorageService = FileStorageService();
+  final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _titleController = TextEditingController();
   
-  String _fileType = 'pdf';
+  String _fileType = 'image';
   File? _selectedFile;
   String? _selectedFileName;
   bool _isUploading = false;
@@ -35,11 +37,33 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedFile = File(image.path);
+          _selectedFileName = image.name;
+          _fileType = 'image';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking image: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   Future<void> _pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
+        allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'],
       );
 
       if (result != null && result.files.single.path != null) {
@@ -54,6 +78,8 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
             } else if (_selectedFileName!.endsWith('.doc') || 
                        _selectedFileName!.endsWith('.docx')) {
               _fileType = 'doc';
+            } else {
+              _fileType = 'image';
             }
           }
         });
@@ -67,7 +93,7 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
     }
   }
 
-  Future<void> _uploadSyllabus() async {
+  Future<void> _uploadRoutine() async {
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a title')),
@@ -77,7 +103,7 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
 
     if (_selectedFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a file')),
+        const SnackBar(content: Text('Please select a file or image')),
       );
       return;
     }
@@ -86,15 +112,14 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
 
     try {
       // Upload file to Firebase Storage
-      final fileUrl = await _fileStorageService.uploadSyllabusFile(
+      final fileUrl = await _fileStorageService.uploadRoutineFile(
         _selectedFile!,
         widget.semester,
-        _titleController.text.trim(),
         _selectedFileName!,
       );
 
       // Save metadata to Firestore
-      final syllabus = Result(
+      final routine = Result(
         id: '',
         department: widget.department,
         semester: widget.semester,
@@ -104,23 +129,23 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
         uploadedAt: DateTime.now(),
       );
 
-      await _resultService.addResult(syllabus);
+      await _resultService.addResult(routine);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Syllabus uploaded successfully')),
+          const SnackBar(content: Text('Routine uploaded successfully')),
         );
         _titleController.clear();
         setState(() {
           _selectedFile = null;
           _selectedFileName = null;
-          _fileType = 'pdf';
+          _fileType = 'image';
         });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading syllabus: ${e.toString()}')),
+          SnackBar(content: Text('Error uploading routine: ${e.toString()}')),
         );
       }
     } finally {
@@ -156,8 +181,10 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
               Icon(
                 _fileType == 'pdf'
                     ? Icons.picture_as_pdf
-                    : Icons.description,
-                color: Colors.green,
+                    : _fileType == 'image'
+                        ? Icons.image
+                        : Icons.description,
+                color: Colors.blue,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -168,6 +195,22 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
               ),
             ],
           ),
+          if (_fileType == 'image')
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                height: 100,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Image.file(
+                  _selectedFile!,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -177,8 +220,8 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("${widget.department} - Semester ${widget.semester} - Syllabus"),
-        backgroundColor: Colors.green,
+        title: Text("${widget.department} - Semester ${widget.semester} - Routine"),
+        backgroundColor: Colors.blue,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -193,7 +236,7 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "Upload New Syllabus",
+                      "Upload New Routine",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -204,7 +247,7 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                     TextField(
                       controller: _titleController,
                       decoration: const InputDecoration(
-                        labelText: "Syllabus Title",
+                        labelText: "Routine Title",
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -221,16 +264,31 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // File Picker Button
+                    // Image Picker Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _isUploading ? null : _pickImage,
+                        icon: const Icon(Icons.image),
+                        label: const Text("Choose Image"),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          backgroundColor: Colors.blue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // File Picker Button (Alternative)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: _isUploading ? null : _pickFile,
                         icon: const Icon(Icons.folder_open),
-                        label: const Text("Choose File (PDF/DOC)"),
+                        label: const Text("Choose File (PDF/Image/DOC)"),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          backgroundColor: Colors.green,
+                          backgroundColor: Colors.blue.withOpacity(0.7),
                         ),
                       ),
                     ),
@@ -240,7 +298,7 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: _isUploading ? null : _uploadSyllabus,
+                        onPressed: _isUploading ? null : _uploadRoutine,
                         icon: _isUploading
                             ? const SizedBox(
                                 width: 20,
@@ -254,11 +312,11 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                               )
                             : const Icon(Icons.upload),
                         label: Text(
-                          _isUploading ? "Uploading..." : "Upload Syllabus",
+                          _isUploading ? "Uploading..." : "Upload Routine",
                         ),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.green,
+                          backgroundColor: Colors.blue,
                         ),
                       ),
                     ),
@@ -269,9 +327,9 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
 
             const SizedBox(height: 20),
 
-            // Existing Syllabus
+            // Existing Routines
             const Text(
-              "Existing Syllabus:",
+              "Existing Routines:",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -292,28 +350,28 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
 
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return const Center(
-                      child: Text("No syllabus uploaded yet"),
+                      child: Text("No routine uploaded yet"),
                     );
                   }
 
-                  final syllabi = snapshot.data!;
+                  final routines = snapshot.data!;
 
                   return ListView.builder(
-                    itemCount: syllabi.length,
+                    itemCount: routines.length,
                     itemBuilder: (context, index) {
-                      final syllabus = syllabi[index];
+                      final routine = routines[index];
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: Icon(
-                            syllabus.fileType == 'pdf'
+                            routine.fileType == 'pdf'
                                 ? Icons.picture_as_pdf
-                                : Icons.description,
-                            color: Colors.green,
+                                : Icons.image,
+                            color: Colors.blue,
                           ),
-                          title: Text(syllabus.title),
+                          title: Text(routine.title),
                           subtitle: Text(
-                            "Uploaded: ${syllabus.uploadedAt.day}/${syllabus.uploadedAt.month}/${syllabus.uploadedAt.year}",
+                            "Uploaded: ${routine.uploadedAt.day}/${routine.uploadedAt.month}/${routine.uploadedAt.year}",
                           ),
                           trailing: IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
@@ -321,8 +379,8 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text('Delete Syllabus'),
-                                  content: Text('Are you sure you want to delete "${syllabus.title}"?'),
+                                  title: const Text('Delete Routine'),
+                                  content: Text('Are you sure you want to delete "${routine.title}"?'),
                                   actions: [
                                     TextButton(
                                       onPressed: () => Navigator.pop(context, false),
@@ -337,10 +395,10 @@ class _SyllabusUploadScreenState extends State<SyllabusUploadScreen> {
                               );
 
                               if (confirm == true) {
-                                await _resultService.deleteResult(syllabus.id);
+                                await _resultService.deleteResult(routine.id);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Syllabus deleted')),
+                                    const SnackBar(content: Text('Routine deleted')),
                                   );
                                 }
                               }
